@@ -1,8 +1,9 @@
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:speehive_social/core/utils/extensions.dart';
 
 class ChatInputBar extends StatefulWidget {
-  final Function(String) onSend;
+  final Function(String text, {String? imagePath}) onSend;
   final bool isLoading;
 
   const ChatInputBar({
@@ -19,6 +20,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   bool _hasText = false;
+  String? _selectedImagePath;
 
   @override
   void initState() {
@@ -38,14 +40,31 @@ class _ChatInputBarState extends State<ChatInputBar> {
     super.dispose();
   }
 
+  Future<void> _pickImage() async {
+    final result = await ImagePicker().pickImage(source: ImageSource.gallery);
+
+    if (result != null) {
+      setState(() {
+        _selectedImagePath = result.path;
+      });
+    }
+  }
+
+  void _removeImage() {
+    setState(() {
+      _selectedImagePath = null;
+    });
+  }
+
   void _handleSend() {
     final text = _controller.text.trim();
-    debugPrint('[CHAT] ChatInputBar._handleSend: text="$text", isLoading=${widget.isLoading}');
-    if (text.isEmpty || widget.isLoading) return;
-    widget.onSend(text);
+    if ((text.isEmpty && _selectedImagePath == null) || widget.isLoading) return;
+    widget.onSend(text, imagePath: _selectedImagePath);
     _controller.clear();
-    _hasText = false;
-    debugPrint('[CHAT] ChatInputBar._handleSend: calling widget.onSend done');
+    setState(() {
+      _hasText = false;
+      _selectedImagePath = null;
+    });
   }
 
   @override
@@ -67,85 +86,120 @@ class _ChatInputBarState extends State<ChatInputBar> {
       ),
       child: SafeArea(
         top: false,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: Container(
-                constraints: const BoxConstraints(maxHeight: 120),
+            if (_selectedImagePath != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: cs.surfaceContainerHighest.withAlpha(140),
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const SizedBox(width: 4),
-                    IconButton(
-                      icon: Icon(Icons.attach_file_outlined,
-                          color: cs.onSurfaceVariant),
-                      onPressed: widget.isLoading ? null : () {},
-                      tooltip: 'Attach media',
-                    ),
+                    Icon(Icons.image, color: cs.primary, size: 20),
+                    const SizedBox(width: 8),
                     Expanded(
-                      child: TextField(
-                        controller: _controller,
-                        focusNode: _focusNode,
-                        maxLines: null,
-                        textInputAction: TextInputAction.newline,
-                        decoration: InputDecoration(
-                          hintText: 'Message SpeeHive Intelligence...',
-                          border: InputBorder.none,
-                          filled: false,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 10,
-                          ),
-                          hintStyle: context.textTheme.bodyMedium?.copyWith(
-                            color: cs.onSurfaceVariant.withAlpha(120),
-                          ),
+                      child: Text(
+                        _selectedImagePath!.split('/').last,
+                        style: context.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
                         ),
-                        onSubmitted: (_) => _handleSend(),
+                        overflow: TextOverflow.ellipsis,
                       ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, size: 18, color: cs.onSurfaceVariant),
+                      onPressed: _removeImage,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(width: 4),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              child: Material(
-                color: _hasText && !widget.isLoading
-                    ? cs.primary
-                    : cs.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(24),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(24),
-                  onTap: _handleSend,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
                   child: Container(
-                    width: 48,
-                    height: 48,
-                    alignment: Alignment.center,
-                    child: widget.isLoading
-                        ? SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: cs.onSurfaceVariant,
+                    constraints: const BoxConstraints(maxHeight: 120),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerHighest.withAlpha(140),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const SizedBox(width: 4),
+                        IconButton(
+                          icon: Icon(Icons.attach_file_outlined,
+                              color: cs.onSurfaceVariant),
+                          onPressed: widget.isLoading ? null : _pickImage,
+                          tooltip: 'Attach image',
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            maxLines: null,
+                            textInputAction: TextInputAction.newline,
+                            decoration: InputDecoration(
+                              hintText: 'Message SpeeHive Intelligence...',
+                              border: InputBorder.none,
+                              filled: false,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                              ),
+                              hintStyle: context.textTheme.bodyMedium?.copyWith(
+                                color: cs.onSurfaceVariant.withAlpha(120),
+                              ),
                             ),
-                          )
-                        : Icon(
-                            _hasText
-                                ? Icons.arrow_upward_rounded
-                                : Icons.mic_outlined,
-                            color: _hasText
-                                ? cs.onPrimary
-                                : cs.onSurfaceVariant,
+                            onSubmitted: (_) => _handleSend(),
                           ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 4),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  child: Material(
+                    color: (_hasText || _selectedImagePath != null) && !widget.isLoading
+                        ? cs.primary
+                        : cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(24),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(24),
+                      onTap: _handleSend,
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        alignment: Alignment.center,
+                        child: widget.isLoading
+                            ? SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              )
+                            : Icon(
+                                (_hasText || _selectedImagePath != null)
+                                    ? Icons.arrow_upward_rounded
+                                    : Icons.mic_outlined,
+                                color: (_hasText || _selectedImagePath != null)
+                                    ? cs.onPrimary
+                                    : cs.onSurfaceVariant,
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

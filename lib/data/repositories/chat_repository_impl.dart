@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:ai_sdk_dart/ai_sdk_dart.dart';
+import 'package:ai_sdk_provider/ai_sdk_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:speehive_social/core/constants/app_constants.dart';
 import 'package:speehive_social/core/constants/prompts.dart';
@@ -158,12 +161,66 @@ class ChatRepositoryImpl implements ChatRepository {
     return [
       systemMessage,
       ...messages.map((m) {
+        if (m.imagePath != null && m.imagePath!.isNotEmpty && m.role == MessageRole.user) {
+          return _convertMessageWithImage(m);
+        }
         return ModelMessage(
           role: _toModelMessageRole(m.role),
           content: m.content,
         );
       }),
     ];
+  }
+
+  ModelMessage _convertMessageWithImage(ChatMessage message) {
+    final parts = <LanguageModelV3ContentPart>[];
+
+    try {
+      final file = File(message.imagePath!);
+      if (file.existsSync()) {
+        final bytes = file.readAsBytesSync();
+        final base64Image = base64Encode(bytes);
+
+        final extension = message.imagePath!.split('.').last.toLowerCase();
+        String mediaType;
+        switch (extension) {
+          case 'png':
+            mediaType = 'image/png';
+            break;
+          case 'gif':
+            mediaType = 'image/gif';
+            break;
+          case 'webp':
+            mediaType = 'image/webp';
+            break;
+          default:
+            mediaType = 'image/jpeg';
+        }
+
+        parts.add(LanguageModelV3ImagePart(
+          image: DataContentBase64(base64Image),
+          mediaType: mediaType,
+        ));
+      }
+    } catch (e) {
+      debugPrint('[CHAT] Failed to read image file: $e');
+    }
+
+    if (message.content.isNotEmpty) {
+      parts.add(LanguageModelV3TextPart(text: message.content));
+    }
+
+    if (parts.isEmpty) {
+      return ModelMessage(
+        role: _toModelMessageRole(message.role),
+        content: message.content,
+      );
+    }
+
+    return ModelMessage.parts(
+      role: _toModelMessageRole(message.role),
+      parts: parts,
+    );
   }
 
   ModelMessageRole _toModelMessageRole(MessageRole role) {

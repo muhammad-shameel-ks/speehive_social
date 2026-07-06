@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:speehive_social/core/utils/extensions.dart';
+import 'package:speehive_social/domain/entities/chat_message.dart';
 import 'package:speehive_social/presentation/chat/notifier/chat_notifier.dart';
 import 'package:speehive_social/presentation/chat/widgets/chat_input_bar.dart';
 import 'package:speehive_social/presentation/chat/widgets/chat_message_bubble.dart';
@@ -33,9 +34,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
-  void _handleSend(String text) {
-    debugPrint('[CHAT] ChatScreen._handleSend: "$text"');
-    ref.read(chatProvider.notifier).streamMessage(text);
+  void _handleSend(String text, {String? imagePath}) {
+    debugPrint('[CHAT] ChatScreen._handleSend: text="$text", image="$imagePath"');
+    ref.read(chatProvider.notifier).streamMessage(text, imagePath: imagePath);
   }
 
   @override
@@ -129,24 +130,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [cs.primary, cs.tertiary],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: const Icon(Icons.chat_bubble_outline_rounded,
-                  size: 40, color: Colors.white),
+            Image.asset(
+              'assets/icons/speehive_logo.png',
+              width: 120,
+              height: 120,
             ),
             const SizedBox(height: 24),
             Text(
               'Welcome to SpeeHive Intelligence',
+              textAlign: TextAlign.center,
               style: context.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -219,7 +213,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (hasToolCalls) _buildStreamingToolCalls(cs, state),
+          if (hasToolCalls)
+            ...state.streamingToolCalls.map(
+              (tool) => _buildStreamingToolCall(cs, tool),
+            ),
           if (hasToolCalls && hasContent) const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(16),
@@ -263,68 +260,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _buildStreamingToolCalls(ColorScheme cs, ChatState state) {
+  Widget _buildStreamingToolCall(ColorScheme cs, ToolCallData tool) {
+    final isDone = tool.result != null;
     return Container(
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: cs.secondaryContainer.withAlpha(120),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: cs.outlineVariant.withAlpha(80)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Icon(Icons.auto_awesome, size: 14, color: cs.onSecondaryContainer),
-              const SizedBox(width: 6),
-              Text(
-                'AI Actions',
-                style: context.textTheme.labelSmall?.copyWith(
-                  color: cs.onSecondaryContainer,
-                  fontWeight: FontWeight.w600,
-                ),
+          Icon(Icons.auto_awesome, size: 14, color: cs.onSecondaryContainer),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              tool.name,
+              style: context.textTheme.bodySmall?.copyWith(
+                color: cs.onSecondaryContainer,
+                fontWeight: FontWeight.w500,
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 6),
-          ...state.streamingToolCalls.map((tool) {
-            final isDone = tool.result != null;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                children: [
-                  isDone
-                      ? Icon(Icons.check_circle, size: 14, color: Colors.green)
-                      : SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: cs.primary,
-                          ),
-                        ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      tool.name,
-                      style: context.textTheme.bodySmall?.copyWith(
-                        color: cs.onSecondaryContainer,
-                      ),
-                    ),
+          isDone
+              ? Icon(Icons.check_circle, size: 14, color: Colors.green)
+              : SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: cs.primary,
                   ),
-                  if (isDone)
-                    Text(
-                      'Done',
-                      style: context.textTheme.labelSmall?.copyWith(
-                        color: Colors.green,
-                      ),
-                    ),
-                ],
-              ),
-            );
-          }),
+                ),
         ],
       ),
     );

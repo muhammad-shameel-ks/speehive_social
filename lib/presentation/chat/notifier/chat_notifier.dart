@@ -110,12 +110,13 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
-  void streamMessage(String content) async {
+  void streamMessage(String content, {String? imagePath}) async {
     final userMessage = ChatMessage(
       id: _uuid.v4(),
       role: MessageRole.user,
       content: content,
       timestamp: DateTime.now(),
+      imagePath: imagePath,
     );
 
     final messages = [...state.messages, userMessage];

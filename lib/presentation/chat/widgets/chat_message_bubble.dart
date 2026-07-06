@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:speehive_social/core/utils/extensions.dart';
@@ -28,7 +30,8 @@ class ChatMessageBubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          if (message.hasToolCalls && !isUser) _buildToolCalls(context, cs),
+          if (message.hasToolCalls && !isUser)
+            ...message.toolCalls.map((tool) => _buildToolCall(context, cs, tool)),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -43,7 +46,27 @@ class ChatMessageBubble extends StatelessWidget {
               ),
             ),
             child: isUser
-                ? Text(message.content, style: context.textTheme.bodyMedium)
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (message.imagePath != null && message.imagePath!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                maxWidth: 200,
+                                maxHeight: 200,
+                              ),
+                              child: _buildImagePreview(message.imagePath!),
+                            ),
+                          ),
+                        ),
+                      if (message.content.isNotEmpty)
+                        Text(message.content, style: context.textTheme.bodyMedium),
+                    ],
+                  )
                 : MarkdownBody(
                     data: message.content,
                     styleSheet: MarkdownStyleSheet(
@@ -76,62 +99,74 @@ class ChatMessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildToolCalls(BuildContext context, ColorScheme cs) {
+  Widget _buildImagePreview(String imagePath) {
+    final file = File(imagePath);
+    if (!file.existsSync()) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey.withAlpha(50),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.broken_image, size: 20, color: Colors.grey),
+            const SizedBox(width: 8),
+            Text('Image not found', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ],
+        ),
+      );
+    }
+    return Image.file(
+      file,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey.withAlpha(50),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 20, color: Colors.red),
+              const SizedBox(width: 8),
+              Text('Failed to load image', style: TextStyle(color: Colors.red, fontSize: 12)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildToolCall(BuildContext context, ColorScheme cs, ToolCallData tool) {
+    final isDone = tool.result != null;
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: cs.secondaryContainer.withAlpha(120),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: cs.outlineVariant.withAlpha(80)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Icon(Icons.auto_awesome, size: 14, color: cs.onSecondaryContainer),
-              const SizedBox(width: 6),
-              Text(
-                'AI Actions',
-                style: context.textTheme.labelSmall?.copyWith(
-                  color: cs.onSecondaryContainer,
-                  fontWeight: FontWeight.w600,
-                ),
+          Icon(Icons.auto_awesome, size: 14, color: cs.onSecondaryContainer),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              tool.name,
+              style: context.textTheme.bodySmall?.copyWith(
+                color: cs.onSecondaryContainer,
+                fontWeight: FontWeight.w500,
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 6),
-          ...message.toolCalls.map((tool) {
-            final isDone = tool.result != null;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                children: [
-                  isDone
-                      ? Icon(Icons.check_circle, size: 14, color: Colors.green)
-                      : Icon(Icons.radio_button_checked, size: 14, color: cs.primary),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      tool.name,
-                      style: context.textTheme.bodySmall?.copyWith(
-                        color: cs.onSecondaryContainer,
-                      ),
-                    ),
-                  ),
-                  if (isDone)
-                    Text(
-                      'Done',
-                      style: context.textTheme.labelSmall?.copyWith(
-                        color: Colors.green,
-                      ),
-                    ),
-                ],
-              ),
-            );
-          }),
+          isDone
+              ? Icon(Icons.check_circle, size: 14, color: Colors.green)
+              : Icon(Icons.radio_button_checked, size: 14, color: cs.primary),
         ],
       ),
     );

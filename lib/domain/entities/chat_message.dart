@@ -36,6 +36,7 @@ class ChatMessage extends Equatable {
   final List<ToolCallData> toolCalls;
   final bool isLoading;
   final Map<String, dynamic>? metadata;
+  final String? imagePath;
 
   const ChatMessage({
     required this.id,
@@ -45,6 +46,7 @@ class ChatMessage extends Equatable {
     this.toolCalls = const [],
     this.isLoading = false,
     this.metadata,
+    this.imagePath,
   });
 
   ChatMessage copyWith({
@@ -55,6 +57,7 @@ class ChatMessage extends Equatable {
     List<ToolCallData>? toolCalls,
     bool? isLoading,
     Map<String, dynamic>? metadata,
+    String? imagePath,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -64,6 +67,7 @@ class ChatMessage extends Equatable {
       toolCalls: toolCalls ?? this.toolCalls,
       isLoading: isLoading ?? this.isLoading,
       metadata: metadata ?? this.metadata,
+      imagePath: imagePath ?? this.imagePath,
     );
   }
 
@@ -72,5 +76,5 @@ class ChatMessage extends Equatable {
   bool get hasToolResults => toolCalls.any((t) => t.result != null);
 
   @override
-  List<Object?> get props => [id, role, content, timestamp, toolCalls, isLoading, metadata];
+  List<Object?> get props => [id, role, content, timestamp, toolCalls, isLoading, metadata, imagePath];
 }

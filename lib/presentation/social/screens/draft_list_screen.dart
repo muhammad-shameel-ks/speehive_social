@@ -1,3 +1,4 @@
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:speehive_social/core/di/providers.dart';
@@ -47,21 +48,35 @@ class _DraftListScreenState extends ConsumerState<DraftListScreen> {
       return;
     }
 
-    final linkedinDatasource = ref.read(linkedinPostDatasourceProvider);
-    final result = await linkedinDatasource.createPost(content: draft.content);
+    String? imagePath;
 
-    if (result.success) {
-      await draftService.markAsPublished(draft.id, result.postId ?? '');
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => _PublishDialog(
+        onPickImage: (path) => imagePath = path,
+      ),
+    );
+
+    if (result != true) return;
+
+    final linkedinDatasource = ref.read(linkedinPostDatasourceProvider);
+    final postResult = await linkedinDatasource.createPost(
+      content: draft.content,
+      imagePath: imagePath,
+    );
+
+    if (postResult.success) {
+      await draftService.markAsPublished(draft.id, postResult.postId ?? '');
       await _loadDrafts();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Post published to LinkedIn')),
+          SnackBar(content: Text(imagePath != null ? 'Post with image published to LinkedIn' : 'Post published to LinkedIn')),
         );
       }
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to publish: ${result.error}')),
+          SnackBar(content: Text('Failed to publish: ${postResult.error}')),
         );
       }
     }
@@ -136,6 +151,106 @@ class _DraftListScreenState extends ConsumerState<DraftListScreen> {
                     );
                   },
                 ),
+    );
+  }
+}
+
+class _PublishDialog extends StatefulWidget {
+  final Function(String? path) onPickImage;
+
+  const _PublishDialog({required this.onPickImage});
+
+  @override
+  State<_PublishDialog> createState() => _PublishDialogState();
+}
+
+class _PublishDialogState extends State<_PublishDialog> {
+  String? _selectedImagePath;
+
+  Future<void> _pickImage() async {
+    final result = await ImagePicker().pickImage(source: ImageSource.gallery);
+
+    if (result != null) {
+      setState(() {
+        _selectedImagePath = result.path;
+      });
+      widget.onPickImage(_selectedImagePath);
+    }
+  }
+
+  void _removeImage() {
+    setState(() {
+      _selectedImagePath = null;
+    });
+    widget.onPickImage(null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.colorScheme;
+
+    return AlertDialog(
+      title: const Text('Publish to LinkedIn'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Would you like to attach an image to this post?',
+            style: context.textTheme.bodyMedium?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_selectedImagePath != null)
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest.withAlpha(140),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.image, color: cs.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _selectedImagePath!.split('/').last,
+                      style: context.textTheme.bodySmall,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, size: 18, color: cs.onSurfaceVariant),
+                    onPressed: _removeImage,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _pickImage,
+                icon: const Icon(Icons.add_photo_alternate_outlined, size: 20),
+                label: const Text('Pick an image'),
+              ),
+            ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton.icon(
+          onPressed: () => Navigator.of(context).pop(true),
+          icon: const Icon(Icons.publish, size: 18),
+          label: const Text('Publish'),
+        ),
+      ],
     );
   }
 }

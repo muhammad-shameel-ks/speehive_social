@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:speehive_social/core/constants/app_constants.dart';
@@ -21,10 +23,69 @@ class LinkedInPostDatasource {
 
   LinkedInPostDatasource(this._oauthService);
 
+  Map<String, String> _headers(String token) => {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+        'X-Restli-Protocol-Version': '2.0.0',
+        'LinkedIn-Version': '202606',
+      };
+
+  Future<String?> uploadImage({
+    required String token,
+    required String personUrn,
+    required String imagePath,
+  }) async {
+    try {
+      final initResponse = await http.post(
+        Uri.parse('${LinkedInConfig.apiBaseUrl}/rest/images?action=initializeUpload'),
+        headers: _headers(token),
+        body: json.encode({
+          'initializeUploadRequest': {
+            'owner': personUrn,
+          },
+        }),
+      );
+
+      if (initResponse.statusCode != 200) {
+        debugPrint('[LINKEDIN] Image init failed: ${initResponse.statusCode} ${initResponse.body}');
+        return null;
+      }
+
+      final initData = json.decode(initResponse.body);
+      final uploadUrl = initData['value']['uploadUrl'] as String;
+      final imageUrn = initData['value']['image'] as String;
+
+      debugPrint('[LINKEDIN] Image initialized: $imageUrn');
+
+      final imageBytes = await File(imagePath).readAsBytes();
+
+      final uploadResponse = await http.put(
+        Uri.parse(uploadUrl),
+        headers: {
+          'Content-Type': 'application/octet-stream',
+        },
+        body: imageBytes,
+      );
+
+      if (uploadResponse.statusCode != 200 && uploadResponse.statusCode != 201) {
+        debugPrint('[LINKEDIN] Image upload failed: ${uploadResponse.statusCode}');
+        return null;
+      }
+
+      debugPrint('[LINKEDIN] Image uploaded successfully: $imageUrn');
+      return imageUrn;
+    } catch (e) {
+      debugPrint('[LINKEDIN] Image upload error: $e');
+      return null;
+    }
+  }
+
   Future<LinkedInPostResult> createPost({
     required String content,
     String? authorUrn,
     String visibility = 'PUBLIC',
+    String? imagePath,
+    String? imageUrn,
   }) async {
     final token = await _oauthService.getValidAccessToken();
     if (token == null) {
@@ -42,26 +103,47 @@ class LinkedInPostDatasource {
       );
     }
 
+    String? finalImageUrn = imageUrn;
+
+    if (imagePath != null && finalImageUrn == null) {
+      finalImageUrn = await uploadImage(
+        token: token,
+        personUrn: personUrn,
+        imagePath: imagePath,
+      );
+      if (finalImageUrn == null) {
+        return const LinkedInPostResult(
+          success: false,
+          error: 'Failed to upload image',
+        );
+      }
+    }
+
     try {
+      final postBody = <String, dynamic>{
+        'author': personUrn,
+        'commentary': content,
+        'visibility': visibility,
+        'distribution': {
+          'feedDistribution': 'MAIN_FEED',
+          'targetEntities': [],
+          'thirdPartyDistributionChannels': [],
+        },
+        'lifecycleState': 'PUBLISHED',
+      };
+
+      if (finalImageUrn != null) {
+        postBody['content'] = {
+          'media': {
+            'id': finalImageUrn,
+          },
+        };
+      }
+
       final response = await http.post(
         Uri.parse('${LinkedInConfig.apiBaseUrl}/rest/posts'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-          'X-Restli-Protocol-Version': '2.0.0',
-          'LinkedIn-Version': '202606',
-        },
-        body: json.encode({
-          'author': personUrn,
-          'commentary': content,
-          'visibility': visibility,
-          'distribution': {
-            'feedDistribution': 'MAIN_FEED',
-            'targetEntities': [],
-            'thirdPartyDistributionChannels': [],
-          },
-          'lifecycleState': 'PUBLISHED',
-        }),
+        headers: _headers(token),
+        body: json.encode(postBody),
       );
 
       if (response.statusCode == 201) {
@@ -78,6 +160,8 @@ class LinkedInPostDatasource {
             content: content,
             authorUrn: authorUrn,
             visibility: visibility,
+            imagePath: imagePath,
+            imageUrn: imageUrn,
           );
         }
         return const LinkedInPostResult(
@@ -116,11 +200,7 @@ class LinkedInPostDatasource {
           'count': count.toString(),
           'sortBy': 'LAST_MODIFIED',
         }),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'X-Restli-Protocol-Version': '2.0.0',
-          'LinkedIn-Version': '202606',
-        },
+        headers: _headers(token),
       );
 
       if (response.statusCode == 200) {

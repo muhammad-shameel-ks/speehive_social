@@ -53,7 +53,10 @@ Publish a post directly to LinkedIn.
 - Parameters:
   - content (required): The post content
   - visibility (optional): PUBLIC or CONNECTIONS
+  - imagePath (optional): Local file path to an image to attach (JPG, PNG, or GIF). Use this when the user has attached an image to their message.
 - Returns: Success status and post ID
+
+**Important:** When the user attaches an image to their message, you can see the image in the message context. Use the `imagePath` parameter to include it in the LinkedIn post. The image path will be available in the user's message.
 
 ### 4. create_post
 Create a post for multiple platforms (Twitter, LinkedIn, Instagram, Facebook).

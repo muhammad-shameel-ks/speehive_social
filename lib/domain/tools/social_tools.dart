@@ -128,7 +128,7 @@ class SocialMediaTools {
   );
 
   late final _createLinkedInPostTool = tool<Map<String, dynamic>, String>(
-    description: 'Create and publish a post to LinkedIn using the LinkedIn Posts API. Use this to publish content directly to LinkedIn.',
+    description: 'Create and publish a post to LinkedIn using the LinkedIn Posts API. Use this to publish content directly to LinkedIn. Supports optional image attachment.',
     inputSchema: Schema<Map<String, dynamic>>(
       jsonSchema: {
         'type': 'object',
@@ -141,6 +141,10 @@ class SocialMediaTools {
             'type': 'string',
             'enum': ['PUBLIC', 'CONNECTIONS'],
             'description': 'Post visibility (default: PUBLIC)',
+          },
+          'imagePath': {
+            'type': 'string',
+            'description': 'Optional local file path to an image to attach (JPG, PNG, or GIF)',
           },
         },
         'required': ['content'],
@@ -155,18 +159,22 @@ class SocialMediaTools {
       try {
         final content = input['content'] as String;
         final visibility = (input['visibility'] as String?) ?? 'PUBLIC';
+        final imagePath = input['imagePath'] as String?;
 
         debugPrint('[TOOLS] create_linkedin_post: publishing to LinkedIn');
         final result = await _linkedinDatasource.createPost(
           content: content,
           visibility: visibility,
+          imagePath: imagePath,
         );
 
         if (result.success) {
           return json.encode({
             'success': true,
             'postId': result.postId,
-            'message': 'Post published successfully to LinkedIn.',
+            'message': imagePath != null
+                ? 'Post with image published successfully to LinkedIn.'
+                : 'Post published successfully to LinkedIn.',
           });
         } else {
           return json.encode({
